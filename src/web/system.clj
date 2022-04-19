@@ -9,7 +9,7 @@
     [web.server :as server]
     [web.util :as util]
     [xtdb.api :as xt])
-  (:import xtdb.node.XtdbNode))
+  (:import java.io.Closeable))
 (set! *warn-on-reflection* true)
 
 ;; this is a bit excessive
@@ -28,7 +28,7 @@
   "TODO: put in static config"
   {::ds/defs
    {:env    {:port          8083
-             :prefix        ""
+             :prefix        "/TODO.exe"
              :schema        "db_schema.edn"}
     :db     {:schema        {:conf  {:source (ds/ref [:env :schema])}
                              :start (fn [cfg _ _]
@@ -44,7 +44,7 @@
                              ;         (when-not (d/database-exists? cfg)
                              ;           (d/create-database cfg))
                              ;         (or inst (d/connect cfg)))
-                             :stop  (fn [_ ^XtdbNode conn _]
+                             :stop  (fn [_ ^Closeable conn _]
                                       (when conn (.close conn)))}}
                              ;:stop  (fn [_ conn _]
                              ;         (some-> conn d/release)
@@ -56,9 +56,16 @@
                                      :not-found-handler (ds/ref :404-fn)}
                              :start (->%1 router/resource-route)}
              :routes        [(ds/ref [:env :prefix])
-                             (ds/ref :static-route)]
+                             (ds/ref :static-route)
+                             (seq router/routes)]
              :session-store {:start (fn [_ _ _] (ring.middleware.session.memory/memory-store))}
+             :template-fn   (fn [body _req]
+                              [:html
+                               [:head
+                                [:meta {:charset "UTF-8"}]]
+                               [:body body]])
              :middleware    {:conf  {:default-status  200
+                                     :template        (ds/ref :template-fn)
                                      :not-found       (ds/ref :404-fn)
                                      :session         {:store (ds/ref :session-store)
                                                        :cookie-attrs {:same-site  :strict
